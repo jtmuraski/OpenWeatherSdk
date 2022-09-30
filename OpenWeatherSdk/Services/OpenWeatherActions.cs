@@ -9,6 +9,8 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using AWSSDK;
 using Amazon.APIGateway;
+using Amazon.Lambda.APIGatewayEvents;
+using System.Text.Json;
 
 namespace OpenWeatherSdk.Services
 {
@@ -17,12 +19,11 @@ namespace OpenWeatherSdk.Services
         ///<summary>
         /// Get a short weather summary for a time range. Defaults to 2 days.
         /// </summary>
-        /// <param name="StartDate">Date to start the search</param>
-        /// <param name="EndDate">Date to end the search</param>
         /// <returns>Returns a ShortSummary datatype</returns>
         public static GetShortSummary GetShortSummary()
         {
             GetShortSummary response = new GetShortSummary();
+            // ---Get the Url from the config.json doc and validate the contents---
             string json = "";
             using (StreamReader reader = new StreamReader("config.json"))
             {
@@ -51,12 +52,39 @@ namespace OpenWeatherSdk.Services
                 errorResponse.ApiResponse.Headers.Add("Message", "The URL for the Metar Summary resource is currently missing or unavailable at this time");
                 return errorResponse;
             }
-            string baseUrl = urlValues["Connections"]["MetarUrl"].ToString();
 
-            Amazon.APIGateway.Api
-            
+            // ---Set up and execute the HttpClient---
+            string baseUrl = urlValues["Connections"]["SummaryUrl"].ToString();
+            // TODO: Add the start and end date parameters
+            //--------------------------------------------
+
+            //--------------------------------------------
+            HttpClient client = new HttpClient();
+            client.BaseAddress = new Uri(baseUrl);
+            var apiResponse = client.GetAsync(baseUrl).Result;
+            string body = "";
+            if (apiResponse.IsSuccessStatusCode)
+                body = apiResponse.Content.ReadAsStringAsync().Result;
+            else
+            {
+                var errorResponse = new GetShortSummary();
+                errorResponse.ApiResponse.StatusCode = System.Net.HttpStatusCode.BadRequest;
+                errorResponse.ApiResponse.Headers.Add("Message", "The API call was unable to get a response");
+                return errorResponse;
+            }
+
+            // ---Parse the response into the usable model---
+            var SummaryCollection = System.Text.Json.JsonSerializer.Deserialize<List<ShortSummary>>(body);
+            response.ShortSummaryCollection = SummaryCollection;
+            response.ApiResponse.StatusCode = System.Net.HttpStatusCode.OK;
             return response;
         }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="startDate"></param>
+        /// <param name="endDate"></param>
+        /// <returns></returns>
         public static GetShortSummary GetShortSummary(DateTime startDate, DateTime? endDate)
         {
             GetShortSummary response = new GetShortSummary();

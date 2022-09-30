@@ -1,6 +1,6 @@
 ﻿{
   "Connections": {
-    "MetarUrl": ""
+    "SummaryUrl": "https://u8tivo4gja.execute-api.us-east-2.amazonaws.com/test/metar/shortsummary"
   }
-  
+
 }

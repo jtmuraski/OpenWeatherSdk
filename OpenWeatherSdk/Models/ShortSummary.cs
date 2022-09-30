@@ -9,6 +9,10 @@ namespace OpenWeatherSdk.Models
     public class ShortSummary
     {
         public int Id { get; set; }
-        public string RawText { get; set; }
+        public string StationId { get; set; }
+        public DateTime ObservationTime { get; set; }
+        public double TempC { get; set; }
+        public double AltimeterInHg { get; set; }
+        public double PrecipIn { get; set; }
     }
 }
