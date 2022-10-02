@@ -11,6 +11,8 @@ using AWSSDK;
 using Amazon.APIGateway;
 using Amazon.Lambda.APIGatewayEvents;
 using System.Text.Json;
+using System.Web;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace OpenWeatherSdk.Services
 {
@@ -20,74 +22,91 @@ namespace OpenWeatherSdk.Services
         /// Get a short weather summary for a time range. Defaults to 2 days.
         /// </summary>
         /// <returns>Returns a ShortSummary datatype</returns>
-        public static GetShortSummary GetShortSummary()
+        public static ShortSummaryResponse GetShortSummary()
         {
-            GetShortSummary response = new GetShortSummary();
+            ShortSummaryResponse response = new ShortSummaryResponse();
             // ---Get the Url from the config.json doc and validate the contents---
             string json = "";
-            using (StreamReader reader = new StreamReader("config.json"))
+            string dir = Directory.GetCurrentDirectory();
+            using (StreamReader reader = new StreamReader("C:\\Projects\\GitHubRepos\\OpenWeatherSdk\\OpenWeatherSdk\\Resources\\config.json"))
             {
                 json = reader.ReadToEnd();
             }
             dynamic urlValues = JObject.Parse(json);
             if(urlValues is null)
             {
-                var errorResponse = new GetShortSummary();
-                errorResponse.ApiResponse.StatusCode = System.Net.HttpStatusCode.BadRequest;
-                errorResponse.ApiResponse.Headers.Add("Message", "The config file containing API Connection data is either missing or inaccessible at this time");
+                var errorResponse = new ShortSummaryResponse();
+                errorResponse.ApiResponse = Models.Enums.ApiCallStatus.Error;
+                errorResponse.Message = "The config file containing API Connection data is either missing or inaccessible at this time";
                 return errorResponse;  
 
             }
             else if(!urlValues.ContainsKey("Connections"))
             {
-                var errorResponse = new GetShortSummary();
-                errorResponse.ApiResponse.StatusCode = System.Net.HttpStatusCode.BadRequest;
-                errorResponse.ApiResponse.Headers.Add("Message", "The URL for the Metar Summary resource is currently missing or unavailable at this time");
+                var errorResponse = new ShortSummaryResponse();
+                errorResponse.ApiResponse= Models.Enums.ApiCallStatus.Error;   
+                errorResponse.Message = "The URL for the Metar Summary resource is currently missing or unavailable at this time";
                 return errorResponse;
             }
             else if(!urlValues.Connections.ContainsKey("MetarUrl"))
             {
-                var errorResponse = new GetShortSummary();
-                errorResponse.ApiResponse.StatusCode = System.Net.HttpStatusCode.BadRequest;
-                errorResponse.ApiResponse.Headers.Add("Message", "The URL for the Metar Summary resource is currently missing or unavailable at this time");
+                var errorResponse = new ShortSummaryResponse();
+                errorResponse.ApiResponse = Models.Enums.ApiCallStatus.Error;
+                errorResponse.Message = "The URL for the Metar Summary resource is currently missing or unavailable at this time";
                 return errorResponse;
             }
 
             // ---Set up and execute the HttpClient---
+            // --Build parameters--
             string baseUrl = urlValues["Connections"]["SummaryUrl"].ToString();
-            // TODO: Add the start and end date parameters
-            //--------------------------------------------
+            DateTime startDate = DateTime.Now.AddDays(-2);
+            DateTime endDate = DateTime.Now;
+            var queryParams = new Dictionary<string, string>()
+            {
+                ["StartDate"] = startDate.ToShortDateString(),
+                ["EndDate"] = endDate.ToShortDateString()
+            };
+            var query = QueryHelpers.AddQueryString(baseUrl, queryParams);
 
-            //--------------------------------------------
+            // --Build and Execute the HttpClient--
             HttpClient client = new HttpClient();
-            client.BaseAddress = new Uri(baseUrl);
-            var apiResponse = client.GetAsync(baseUrl).Result;
+            client.BaseAddress = new Uri(query);
+            var apiResponse = client.GetAsync(query).Result;
             string body = "";
             if (apiResponse.IsSuccessStatusCode)
                 body = apiResponse.Content.ReadAsStringAsync().Result;
             else
             {
-                var errorResponse = new GetShortSummary();
-                errorResponse.ApiResponse.StatusCode = System.Net.HttpStatusCode.BadRequest;
-                errorResponse.ApiResponse.Headers.Add("Message", "The API call was unable to get a response");
+                var errorResponse = new ShortSummaryResponse();
+                errorResponse.ApiResponse = Models.Enums.ApiCallStatus.Error;
+                errorResponse.Message = "The API call was unable to get a response";
                 return errorResponse;
             }
 
             // ---Parse the response into the usable model---
             var SummaryCollection = System.Text.Json.JsonSerializer.Deserialize<List<ShortSummary>>(body);
-            response.ShortSummaryCollection = SummaryCollection;
-            response.ApiResponse.StatusCode = System.Net.HttpStatusCode.OK;
+            if(SummaryCollection is null)
+            {
+                response.ApiResponse = Models.Enums.ApiCallStatus.NoResult;
+            }
+            else
+            {
+                response.ShortSummaryCollection = SummaryCollection;
+                response.ApiResponse = Models.Enums.ApiCallStatus.Complete;
+            }
+            
             return response;
         }
+
         /// <summary>
         /// 
         /// </summary>
         /// <param name="startDate"></param>
         /// <param name="endDate"></param>
         /// <returns></returns>
-        public static GetShortSummary GetShortSummary(DateTime startDate, DateTime? endDate)
+        public static ShortSummaryResponse GetShortSummary(DateTime startDate, DateTime? endDate)
         {
-            GetShortSummary response = new GetShortSummary();
+            ShortSummaryResponse response = new ShortSummaryResponse();
             if (endDate is null)
                 endDate = DateTime.Now;
             HttpClient client = new HttpClient();
