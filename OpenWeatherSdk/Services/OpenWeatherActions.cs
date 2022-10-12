@@ -13,19 +13,69 @@ using Amazon.Lambda.APIGatewayEvents;
 using System.Text.Json;
 using System.Web;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace OpenWeatherSdk.Services
 {
     public static class OpenWeatherActions
     {
+        /// <summary>
+        /// Private function for the public functions to call the API URL after the date parameters have been established
+        /// </summary>
+        /// <param name="url"></param>
+        /// <returns></returns>
+        private static ShortSummaryResponse CallShortSummary(string url)
+        {
+            ShortSummaryResponse response = new ShortSummaryResponse();
+            // --Build and Execute the HttpClient--
+            Console.WriteLine("Calling the API");
+            HttpClient client = new HttpClient();
+            client.BaseAddress = new Uri(url);
+            var apiResponse = client.GetAsync(url).Result;
+            string body = "";
+            if (apiResponse.IsSuccessStatusCode)
+                body = apiResponse.Content.ReadAsStringAsync().Result;
+            else
+            {
+                var errorResponse = new ShortSummaryResponse();
+                errorResponse.ApiResponse = Models.Enums.ApiCallStatus.Error;
+                errorResponse.Message = "The API call was unable to get a response";
+                return errorResponse;
+            }
+            if (string.IsNullOrEmpty(body))
+            {
+                var nullResponse = new ShortSummaryResponse();
+                nullResponse.ApiResponse = Models.Enums.ApiCallStatus.NoResult;
+                nullResponse.Message = "The API returned a null result";
+                Console.WriteLine(nullResponse.Message);
+                return nullResponse;
+            }
+            Console.WriteLine("Body Response: " + body);
+            Console.WriteLine("API has been queried");
+            // ---Parse the response into the usable model---
+            var SummaryCollection = System.Text.Json.JsonSerializer.Deserialize<List<ShortSummary>>(body);
+            if (SummaryCollection is null)
+            {
+                response.ApiResponse = Models.Enums.ApiCallStatus.NoResult;
+            }
+            else
+            {
+                response.ShortSummaryCollection = SummaryCollection;
+                response.ApiResponse = Models.Enums.ApiCallStatus.Complete;
+            }
+            return response;
+        }
         ///<summary>
         /// Get a short weather summary for a time range. Defaults to 2 days.
         /// </summary>
         /// <returns>Returns a ShortSummary datatype</returns>
         public static ShortSummaryResponse GetShortSummary()
         {
+            
             ShortSummaryResponse response = new ShortSummaryResponse();
             // ---Get the Url from the config.json doc and validate the contents---
+            Console.WriteLine("Building the URL...");
             string json = "";
             string dir = Directory.GetCurrentDirectory();
             using (StreamReader reader = new StreamReader("C:\\Projects\\GitHubRepos\\OpenWeatherSdk\\OpenWeatherSdk\\Resources\\config.json"))
@@ -38,6 +88,7 @@ namespace OpenWeatherSdk.Services
                 var errorResponse = new ShortSummaryResponse();
                 errorResponse.ApiResponse = Models.Enums.ApiCallStatus.Error;
                 errorResponse.Message = "The config file containing API Connection data is either missing or inaccessible at this time";
+                Console.WriteLine(errorResponse.Message);   
                 return errorResponse;  
 
             }
@@ -45,19 +96,22 @@ namespace OpenWeatherSdk.Services
             {
                 var errorResponse = new ShortSummaryResponse();
                 errorResponse.ApiResponse= Models.Enums.ApiCallStatus.Error;   
-                errorResponse.Message = "The URL for the Metar Summary resource is currently missing or unavailable at this time";
+                errorResponse.Message = "The Connections group URL repo is currently missing or unavailable at this time";
+                Console.WriteLine(errorResponse.Message);
                 return errorResponse;
             }
-            else if(!urlValues.Connections.ContainsKey("MetarUrl"))
+            else if(!urlValues.Connections.ContainsKey("SummaryUrl"))
             {
                 var errorResponse = new ShortSummaryResponse();
                 errorResponse.ApiResponse = Models.Enums.ApiCallStatus.Error;
                 errorResponse.Message = "The URL for the Metar Summary resource is currently missing or unavailable at this time";
+                Console.WriteLine(errorResponse.Message);
                 return errorResponse;
             }
-
+            Console.WriteLine("The URL has been built");
             // ---Set up and execute the HttpClient---
             // --Build parameters--
+            Console.WriteLine("Assigning parameter values");
             string baseUrl = urlValues["Connections"]["SummaryUrl"].ToString();
             DateTime startDate = DateTime.Now.AddDays(-2);
             DateTime endDate = DateTime.Now;
@@ -67,35 +121,9 @@ namespace OpenWeatherSdk.Services
                 ["EndDate"] = endDate.ToShortDateString()
             };
             var query = QueryHelpers.AddQueryString(baseUrl, queryParams);
+            Console.WriteLine("Parameters have been added");
 
-            // --Build and Execute the HttpClient--
-            HttpClient client = new HttpClient();
-            client.BaseAddress = new Uri(query);
-            var apiResponse = client.GetAsync(query).Result;
-            string body = "";
-            if (apiResponse.IsSuccessStatusCode)
-                body = apiResponse.Content.ReadAsStringAsync().Result;
-            else
-            {
-                var errorResponse = new ShortSummaryResponse();
-                errorResponse.ApiResponse = Models.Enums.ApiCallStatus.Error;
-                errorResponse.Message = "The API call was unable to get a response";
-                return errorResponse;
-            }
-
-            // ---Parse the response into the usable model---
-            var SummaryCollection = System.Text.Json.JsonSerializer.Deserialize<List<ShortSummary>>(body);
-            if(SummaryCollection is null)
-            {
-                response.ApiResponse = Models.Enums.ApiCallStatus.NoResult;
-            }
-            else
-            {
-                response.ShortSummaryCollection = SummaryCollection;
-                response.ApiResponse = Models.Enums.ApiCallStatus.Complete;
-            }
-            
-            return response;
+            return CallShortSummary(query);
         }
 
         /// <summary>
