@@ -10,16 +10,31 @@ namespace WeatherSdkTest
         [TestMethod]
         public void SummaryNoArguments()
         {
-            // Arrange
+            // ---Arrange---
             // NA
 
-            // Act
+            // ---Act---
             ShortSummaryResponse test = OpenWeatherActions.GetShortSummary();
+           
 
-            // Assert
+            // ---Assert---
             Assert.AreEqual(OpenWeatherSdk.Models.Enums.ApiCallStatus.NoResult, test.ApiResponse, test.Message);
+            
 
 
+        }
+
+        [TestMethod]
+        public void SummaryWithArguments()
+        {
+            // ---Arrange---
+            // N/A
+
+            // ---Act---
+            ShortSummaryResponse dateTest = OpenWeatherActions.GetShortSummary(new System.DateTime(2022, 08, 01), new System.DateTime(2022, 08, 02));
+
+            // ---Assert---
+            Assert.AreEqual(OpenWeatherSdk.Models.Enums.ApiCallStatus.Complete, dateTest.ApiResponse, dateTest.Message);
         }
     }
 }

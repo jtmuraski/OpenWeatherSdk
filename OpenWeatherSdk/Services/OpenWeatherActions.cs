@@ -25,14 +25,61 @@ namespace OpenWeatherSdk.Services
         /// </summary>
         /// <param name="url"></param>
         /// <returns></returns>
-        private static ShortSummaryResponse CallShortSummary(string url)
+        private static ShortSummaryResponse CallShortSummary(DateTime start, DateTime end)
         {
             ShortSummaryResponse response = new ShortSummaryResponse();
+            // --Build the URL--
+            Console.WriteLine("Building the URL...");
+            string json = "";
+            string dir = Directory.GetCurrentDirectory();
+            using (StreamReader reader = new StreamReader(Path.Combine(Directory.GetCurrentDirectory(), "Resources\\config.json")))
+            {
+                json = reader.ReadToEnd();
+            }
+            dynamic urlValues = JObject.Parse(json);
+            if (urlValues is null)
+            {
+                var errorResponse = new ShortSummaryResponse();
+                errorResponse.ApiResponse = Models.Enums.ApiCallStatus.Error;
+                errorResponse.Message = "The config file containing API Connection data is either missing or inaccessible at this time";
+                Console.WriteLine(errorResponse.Message);
+                return errorResponse;
+
+            }
+            else if (!urlValues.ContainsKey("Connections"))
+            {
+                var errorResponse = new ShortSummaryResponse();
+                errorResponse.ApiResponse = Models.Enums.ApiCallStatus.Error;
+                errorResponse.Message = "The Connections group URL repo is currently missing or unavailable at this time";
+                Console.WriteLine(errorResponse.Message);
+                return errorResponse;
+            }
+            else if (!urlValues.Connections.ContainsKey("SummaryUrl"))
+            {
+                var errorResponse = new ShortSummaryResponse();
+                errorResponse.ApiResponse = Models.Enums.ApiCallStatus.Error;
+                errorResponse.Message = "The URL for the Metar Summary resource is currently missing or unavailable at this time";
+                Console.WriteLine(errorResponse.Message);
+                return errorResponse;
+            }
+            Console.WriteLine("The URL has been built");
+
+            // --Build parameters--
+            Console.WriteLine("Assigning parameter values");
+            string baseUrl = urlValues["Connections"]["SummaryUrl"].ToString();
+            var queryParams = new Dictionary<string, string>()
+            {
+                ["StartDate"] = start.ToShortDateString(),
+                ["EndDate"] = end.ToShortDateString()
+            };
+            var query = QueryHelpers.AddQueryString(baseUrl, queryParams);
+            Console.WriteLine("Parameters have been added");
+
             // --Build and Execute the HttpClient--
             Console.WriteLine("Calling the API");
             HttpClient client = new HttpClient();
-            client.BaseAddress = new Uri(url);
-            var apiResponse = client.GetAsync(url).Result;
+            client.BaseAddress = new Uri(query);
+            var apiResponse = client.GetAsync(query).Result;
             string body = "";
             if (apiResponse.IsSuccessStatusCode)
                 body = apiResponse.Content.ReadAsStringAsync().Result;
@@ -51,7 +98,6 @@ namespace OpenWeatherSdk.Services
                 Console.WriteLine(nullResponse.Message);
                 return nullResponse;
             }
-            Console.WriteLine("Body Response: " + body);
             Console.WriteLine("API has been queried");
             // ---Parse the response into the usable model---
             var SummaryCollection = System.Text.Json.JsonSerializer.Deserialize<List<ShortSummary>>(body);
@@ -63,6 +109,7 @@ namespace OpenWeatherSdk.Services
             {
                 response.ShortSummaryCollection = SummaryCollection;
                 response.ApiResponse = Models.Enums.ApiCallStatus.Complete;
+                Console.WriteLine("Number of Results: " + SummaryCollection.Count);
             }
             return response;
         }
@@ -72,58 +119,7 @@ namespace OpenWeatherSdk.Services
         /// <returns>Returns a ShortSummary datatype</returns>
         public static ShortSummaryResponse GetShortSummary()
         {
-            
-            ShortSummaryResponse response = new ShortSummaryResponse();
-            // ---Get the Url from the config.json doc and validate the contents---
-            Console.WriteLine("Building the URL...");
-            string json = "";
-            string dir = Directory.GetCurrentDirectory();
-            using (StreamReader reader = new StreamReader("C:\\Projects\\GitHubRepos\\OpenWeatherSdk\\OpenWeatherSdk\\Resources\\config.json"))
-            {
-                json = reader.ReadToEnd();
-            }
-            dynamic urlValues = JObject.Parse(json);
-            if(urlValues is null)
-            {
-                var errorResponse = new ShortSummaryResponse();
-                errorResponse.ApiResponse = Models.Enums.ApiCallStatus.Error;
-                errorResponse.Message = "The config file containing API Connection data is either missing or inaccessible at this time";
-                Console.WriteLine(errorResponse.Message);   
-                return errorResponse;  
-
-            }
-            else if(!urlValues.ContainsKey("Connections"))
-            {
-                var errorResponse = new ShortSummaryResponse();
-                errorResponse.ApiResponse= Models.Enums.ApiCallStatus.Error;   
-                errorResponse.Message = "The Connections group URL repo is currently missing or unavailable at this time";
-                Console.WriteLine(errorResponse.Message);
-                return errorResponse;
-            }
-            else if(!urlValues.Connections.ContainsKey("SummaryUrl"))
-            {
-                var errorResponse = new ShortSummaryResponse();
-                errorResponse.ApiResponse = Models.Enums.ApiCallStatus.Error;
-                errorResponse.Message = "The URL for the Metar Summary resource is currently missing or unavailable at this time";
-                Console.WriteLine(errorResponse.Message);
-                return errorResponse;
-            }
-            Console.WriteLine("The URL has been built");
-            // ---Set up and execute the HttpClient---
-            // --Build parameters--
-            Console.WriteLine("Assigning parameter values");
-            string baseUrl = urlValues["Connections"]["SummaryUrl"].ToString();
-            DateTime startDate = DateTime.Now.AddDays(-2);
-            DateTime endDate = DateTime.Now;
-            var queryParams = new Dictionary<string, string>()
-            {
-                ["StartDate"] = startDate.ToShortDateString(),
-                ["EndDate"] = endDate.ToShortDateString()
-            };
-            var query = QueryHelpers.AddQueryString(baseUrl, queryParams);
-            Console.WriteLine("Parameters have been added");
-
-            return CallShortSummary(query);
+            return CallShortSummary(DateTime.Now, DateTime.Now.AddDays(-2));
         }
 
         /// <summary>
@@ -135,13 +131,13 @@ namespace OpenWeatherSdk.Services
         public static ShortSummaryResponse GetShortSummary(DateTime startDate, DateTime? endDate)
         {
             ShortSummaryResponse response = new ShortSummaryResponse();
+            DateTime end = new DateTime();
             if (endDate is null)
-                endDate = DateTime.Now;
-            HttpClient client = new HttpClient();
-            HttpRequestMessage request = new HttpRequestMessage();
-            
+                end = DateTime.Now;
+            else
+                end = endDate??DateTime.Now;
 
-            return response;
+            return CallShortSummary(startDate, end);
         }
     }
 }
