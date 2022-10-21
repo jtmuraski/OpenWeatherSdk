@@ -15,6 +15,7 @@ using System.Web;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Reflection;
 
 namespace OpenWeatherSdk.Services
 {
@@ -32,7 +33,8 @@ namespace OpenWeatherSdk.Services
             Console.WriteLine("Building the URL...");
             string json = "";
             string dir = Directory.GetCurrentDirectory();
-            using (StreamReader reader = new StreamReader(Path.Combine(Directory.GetCurrentDirectory(), "Resources\\config.json")))
+            //sing (StreamReader reader = new StreamReader(Path.Combine(Assembly.GetExecutingAssembly().Location, "Resources\\config.json")))
+            using (StreamReader reader = new StreamReader("Resources\\config.json"))
             {
                 json = reader.ReadToEnd();
             }
