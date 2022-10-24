@@ -16,11 +16,13 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Reflection;
+using OpenWeatherSdk.Models.Enums;
 
 namespace OpenWeatherSdk.Services
 {
     public static class OpenWeatherActions
     {
+        private static EnvSettings env = EnvSettings.Production;
         /// <summary>
         /// Private function for the public functions to call the API URL after the date parameters have been established
         /// </summary>
@@ -32,12 +34,40 @@ namespace OpenWeatherSdk.Services
             // --Build the URL--
             Console.WriteLine("Building the URL...");
             string json = "";
-            string dir = Directory.GetCurrentDirectory();
-            //sing (StreamReader reader = new StreamReader(Path.Combine(Assembly.GetExecutingAssembly().Location, "Resources\\config.json")))
-            using (StreamReader reader = new StreamReader("Resources\\config.json"))
+            if (env == EnvSettings.Development)
             {
-                json = reader.ReadToEnd();
+                using (StreamReader reader = new StreamReader("Resources\\config.json"))
+                {
+                    json = reader.ReadToEnd();
+                }
             }
+            else
+            {
+                var assembly = Assembly.GetCallingAssembly();
+                Console.WriteLine(assembly.FullName.ToString());
+                var resourceName = "OpenWeatherSdk.Resources.config.json";
+                if (assembly.GetManifestResourceStream(resourceName) is null)
+                {
+                    Console.WriteLine("Assembly could not be found. Using hard JSON");
+                    json = @"{
+                              ""Connections"": {
+                                ""SummaryUrl"": ""https://u8tivo4gja.execute-api.us-east-2.amazonaws.com/test/metar/shortsummary""
+                                            }
+                              }";
+                }
+                else
+                {
+                    Console.WriteLine("Assembly FOund. Accessign config.json now");
+                    using (Stream stream = assembly.GetManifestResourceStream(resourceName))
+                    {
+                        using (StreamReader reader = new StreamReader(stream))
+                        {
+                            json = reader.ReadToEnd();
+                        }
+                    }
+                }
+            }
+            
             dynamic urlValues = JObject.Parse(json);
             if (urlValues is null)
             {
@@ -65,7 +95,6 @@ namespace OpenWeatherSdk.Services
                 return errorResponse;
             }
             Console.WriteLine("The URL has been built");
-
             // --Build parameters--
             Console.WriteLine("Assigning parameter values");
             string baseUrl = urlValues["Connections"]["SummaryUrl"].ToString();
@@ -121,7 +150,7 @@ namespace OpenWeatherSdk.Services
         /// <returns>Returns a ShortSummary datatype</returns>
         public static ShortSummaryResponse GetShortSummary()
         {
-            return CallShortSummary(DateTime.Now, DateTime.Now.AddDays(-2));
+            return CallShortSummary(DateTime.Now.AddDays(-2), DateTime.Now);
         }
 
         /// <summary>
